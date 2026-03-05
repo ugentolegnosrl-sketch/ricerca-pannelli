@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+body{
+font-family:Arial;
+background:#f3f3f3;
+padding:15px;
+}
+
+.container{
+max-width:500px;
+margin:auto;
+}
+
+input{
+width:100%;
+padding:14px;
+margin:6px 0;
+font-size:16px;
+}
+
+.card{
+background:white;
+margin-top:12px;
+padding:15px;
+border-radius:10px;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+}
+
+.col5{
+font-size:28px;
+font-weight:bold;
+color:#2e7d32;
+}
+
+.origine{
+font-size:22px;
+font-weight:bold;
+color:#1565c0;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<h2>Ricerca prodotto</h2>
+
+<input id="nome" placeholder="Nome">
+<input id="lunghezza" placeholder="Lunghezza">
+<input id="larghezza" placeholder="Larghezza">
+<input id="spessore" placeholder="Spessore">
+
+<div id="risultati"></div>
+
+</div>
+
+<script>
+
+let prodotti=[]
+async function carica(){
+
+const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
+
+const proxy = "https://corsproxy.io/?"
+
+const res = await fetch(proxy + encodeURIComponent(url))
+const text = await res.text()
+
+const righe = text.split("\n").slice(1)
+
+prodotti = righe.map(r=>{
+  const c = r.split(",")
+
+  return{
+    nome:c[0],
+    lunghezza:c[1],
+    larghezza:c[2],
+    spessore:c[3],
+    col5:c[4],
+    origine:c[6]
+  }
+})
+
+}
+
+function filtra(){
+
+const nome=document.getElementById("nome").value.toLowerCase()
+const lung=document.getElementById("lunghezza").value
+const larg=document.getElementById("larghezza").value
+const spess=document.getElementById("spessore").value
+
+const risultati=prodotti.filter(p=>
+
+(!nome || p.nome.toLowerCase().includes(nome)) &&
+(!lung || p.lunghezza==lung) &&
+(!larg || p.larghezza==larg) &&
+(!spess || p.spessore==spess)
+
+)
+
+mostra(risultati)
+
+}
+
+function mostra(lista){
+
+const div=document.getElementById("risultati")
+
+div.innerHTML=""
+
+lista.slice(0,50).forEach(p=>{
+
+div.innerHTML+=`
+
+<div class="card">
+
+<b>${p.nome}</b><br>
+
+<br>
+
+<div class="col5">${p.col5}</div>
+<div class="origine">${p.origine}</div>
+
+${p.lunghezza} x ${p.larghezza} x ${p.spessore}
+
+</div>
+
+`
+
+})
+
+}
+
+document.querySelectorAll("input").forEach(i=>{
+
+i.addEventListener("input",filtra)
+
+})
+
+carica()
+
+</script>
+
+</body>
+</html>
