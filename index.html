@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-
 body{
 font-family:Arial;
 background:#f3f3f3;
@@ -22,6 +20,7 @@ width:100%;
 padding:14px;
 margin:6px 0;
 font-size:16px;
+box-sizing:border-box;
 }
 
 .card{
@@ -44,8 +43,12 @@ font-weight:bold;
 color:#1565c0;
 }
 
+.nome{
+font-size:22px;
+font-weight:bold;
+margin-bottom:8px;
+}
 </style>
-
 </head>
 
 <body>
@@ -64,91 +67,110 @@ color:#1565c0;
 </div>
 
 <script>
+let prodotti = []
 
-let prodotti=[]
-async function carica(){
+function normalizzaTesto(testo){
+  return String(testo || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")   // toglie accenti
+    .replace(/[^\w\s]/g, " ")          // toglie punteggiatura
+    .replace(/\s+/g, " ")              // spazi multipli
+    .trim()
+}
 
-const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
+function nomeCompatibile(query, nomeProdotto){
+  const q = normalizzaTesto(query)
+  const n = normalizzaTesto(nomeProdotto)
 
-const proxy = "https://corsproxy.io/?"
+  if(!q) return true
+  if(n.includes(q)) return true
 
-const res = await fetch(proxy + encodeURIComponent(url))
-const text = await res.text()
+  const paroleQuery = q.split(" ").filter(Boolean)
+  const paroleNome = n.split(" ").filter(Boolean)
 
-const righe = text.split("\n").slice(1)
+  if(paroleQuery.length === 0) return true
 
-prodotti = righe.map(r=>{
-  const c = r.split(",")
+  let trovate = 0
 
-  return{
-    nome:c[0],
-    lunghezza:c[1],
-    larghezza:c[2],
-    spessore:c[3],
-    col5:c[4],
-    origine:c[6]
+  for(const parolaQ of paroleQuery){
+    const match = paroleNome.some(parolaN =>
+      parolaN.includes(parolaQ) || parolaQ.includes(parolaN)
+    )
+    if(match) trovate++
   }
-})
 
+  // tolleranza: se cerchi 1-2 parole devono esserci tutte,
+  // se ne cerchi 3 o più basta trovarne quasi tutte
+  const minRichieste = paroleQuery.length <= 2
+    ? paroleQuery.length
+    : paroleQuery.length - 1
+
+  return trovate >= minRichieste
+}
+
+async function carica(){
+  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
+  const proxy = "https://corsproxy.io/?"
+
+  const res = await fetch(proxy + encodeURIComponent(url))
+  const text = await res.text()
+
+  const righe = text.split("\n").slice(1)
+
+  prodotti = righe.map(r => {
+    const c = r.split(",")
+
+    return {
+      nome: c[0] || "",
+      lunghezza: c[1] || "",
+      larghezza: c[2] || "",
+      spessore: c[3] || "",
+      col5: c[4] || "",
+      origine: c[6] || ""
+    }
+  })
+
+  mostra(prodotti)
 }
 
 function filtra(){
+  const nome = document.getElementById("nome").value
+  const lung = document.getElementById("lunghezza").value.trim()
+  const larg = document.getElementById("larghezza").value.trim()
+  const spess = document.getElementById("spessore").value.trim()
 
-const nome=document.getElementById("nome").value.toLowerCase()
-const lung=document.getElementById("lunghezza").value
-const larg=document.getElementById("larghezza").value
-const spess=document.getElementById("spessore").value
+  const risultati = prodotti.filter(p =>
+    nomeCompatibile(nome, p.nome) &&
+    (!lung || String(p.lunghezza).trim() == lung) &&
+    (!larg || String(p.larghezza).trim() == larg) &&
+    (!spess || String(p.spessore).trim() == spess)
+  )
 
-const risultati=prodotti.filter(p=>
-
-(!nome || p.nome.toLowerCase().includes(nome)) &&
-(!lung || p.lunghezza==lung) &&
-(!larg || p.larghezza==larg) &&
-(!spess || p.spessore==spess)
-
-)
-
-mostra(risultati)
-
+  mostra(risultati)
 }
 
 function mostra(lista){
+  const div = document.getElementById("risultati")
+  div.innerHTML = ""
 
-const div=document.getElementById("risultati")
-
-div.innerHTML=""
-
-lista.slice(0,50).forEach(p=>{
-
-div.innerHTML+=`
-
-<div class="card">
-
-<b>${p.nome}</b><br>
-
-<br>
-
-<div class="col5">${p.col5}</div>
-<div class="origine">${p.origine}</div>
-
-${p.lunghezza} x ${p.larghezza} x ${p.spessore}
-
-</div>
-
-`
-
-})
-
+  lista.slice(0, 50).forEach(p => {
+    div.innerHTML += `
+      <div class="card">
+        <div class="nome">${p.nome}</div>
+        <div class="col5">${p.col5}</div>
+        <div class="origine">${p.origine}</div>
+        <div>${p.lunghezza} x ${p.larghezza} x ${p.spessore}</div>
+      </div>
+    `
+  })
 }
 
-document.querySelectorAll("input").forEach(i=>{
-
-i.addEventListener("input",filtra)
-
+document.querySelectorAll("input").forEach(i => {
+  i.addEventListener("input", filtra)
 })
 
 carica()
-
 </script>
 
 </body>
