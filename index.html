@@ -5,48 +5,67 @@
 
 <style>
 body{
-font-family:Arial;
-background:#f3f3f3;
-padding:15px;
+  font-family:Arial;
+  background:#f3f3f3;
+  padding:15px;
 }
 
 .container{
-max-width:500px;
-margin:auto;
+  max-width:500px;
+  margin:auto;
 }
 
 input{
-width:100%;
-padding:14px;
-margin:6px 0;
-font-size:16px;
-box-sizing:border-box;
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  font-size:16px;
+  box-sizing:border-box;
 }
 
 .card{
-background:white;
-margin-top:12px;
-padding:15px;
-border-radius:10px;
-box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  background:white;
+  margin-top:12px;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
 }
 
-.col5{
-font-size:28px;
-font-weight:bold;
-color:#2e7d32;
+.posizione{
+  font-size:28px;
+  font-weight:bold;
+  color:#2e7d32;
 }
 
 .origine{
-font-size:22px;
-font-weight:bold;
-color:#1565c0;
+  font-size:22px;
+  font-weight:bold;
+  color:#1565c0;
 }
 
 .nome{
-font-size:22px;
-font-weight:bold;
-margin-bottom:8px;
+  font-size:22px;
+  font-weight:bold;
+  margin-bottom:8px;
+}
+
+.codice{
+  font-size:14px;
+  color:#666;
+  margin-bottom:8px;
+  word-break:break-all;
+}
+
+.qta{
+  font-size:18px;
+  font-weight:bold;
+  color:#444;
+  margin-top:8px;
+}
+
+.misure{
+  font-size:16px;
+  margin-top:6px;
 }
 </style>
 </head>
@@ -57,7 +76,7 @@ margin-bottom:8px;
 
 <h2>Ricerca prodotto</h2>
 
-<input id="nome" placeholder="Nome">
+<input id="nome" placeholder="Nome o codice">
 <input id="lunghezza" placeholder="Lunghezza">
 <input id="larghezza" placeholder="Larghezza">
 <input id="spessore" placeholder="Spessore">
@@ -73,15 +92,15 @@ function normalizzaTesto(testo){
   return String(testo || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")   // toglie accenti
-    .replace(/[^\w\s]/g, " ")          // toglie punteggiatura
-    .replace(/\s+/g, " ")              // spazi multipli
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
 }
 
-function nomeCompatibile(query, nomeProdotto){
+function nomeCompatibile(query, testo){
   const q = normalizzaTesto(query)
-  const n = normalizzaTesto(nomeProdotto)
+  const n = normalizzaTesto(testo)
 
   if(!q) return true
   if(n.includes(q)) return true
@@ -100,8 +119,6 @@ function nomeCompatibile(query, nomeProdotto){
     if(match) trovate++
   }
 
-  // tolleranza: se cerchi 1-2 parole devono esserci tutte,
-  // se ne cerchi 3 o più basta trovarne quasi tutte
   const minRichieste = paroleQuery.length <= 2
     ? paroleQuery.length
     : paroleQuery.length - 1
@@ -109,43 +126,55 @@ function nomeCompatibile(query, nomeProdotto){
   return trovate >= minRichieste
 }
 
+function numeroCompatibile(valoreFiltro, valoreProdotto){
+  const filtro = String(valoreFiltro || "").trim().replace(",", ".")
+  if(!filtro) return true
+
+  const a = Number(filtro)
+  const b = Number(String(valoreProdotto || "").trim().replace(",", "."))
+
+  if(!Number.isFinite(a) || !Number.isFinite(b)) return false
+  return a === b
+}
+
 async function carica(){
-  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
-  const proxy = "https://corsproxy.io/?"
+  const res = await fetch("/api/products")
+  const data = await res.json()
 
-  const res = await fetch(proxy + encodeURIComponent(url))
-  const text = await res.text()
+  if(!res.ok || !data.ok){
+    throw new Error((data && data.error) || "Errore caricamento prodotti")
+  }
 
-  const righe = text.split("\n").slice(1)
-
-  prodotti = righe.map(r => {
-    const c = r.split(",")
-
-    return {
-      nome: c[0] || "",
-      lunghezza: c[1] || "",
-      larghezza: c[2] || "",
-      spessore: c[3] || "",
-      col5: c[4] || "",
-      origine: c[6] || ""
-    }
-  })
+  prodotti = (data.products || []).map(p => ({
+    codice: p.codice || "",
+    nome: p.nome || "",
+    lunghezza: p.lunghezza ?? "",
+    larghezza: p.larghezza ?? "",
+    spessore: p.spessore ?? "",
+    posizione: p.posizione || "",
+    quantita: p.quantita ?? "",
+    origine: p.origine || ""
+  }))
 
   mostra(prodotti)
 }
 
 function filtra(){
   const nome = document.getElementById("nome").value
-  const lung = document.getElementById("lunghezza").value.trim()
-  const larg = document.getElementById("larghezza").value.trim()
-  const spess = document.getElementById("spessore").value.trim()
+  const lung = document.getElementById("lunghezza").value
+  const larg = document.getElementById("larghezza").value
+  const spess = document.getElementById("spessore").value
 
-  const risultati = prodotti.filter(p =>
-    nomeCompatibile(nome, p.nome) &&
-    (!lung || String(p.lunghezza).trim() == lung) &&
-    (!larg || String(p.larghezza).trim() == larg) &&
-    (!spess || String(p.spessore).trim() == spess)
-  )
+  const risultati = prodotti.filter(p => {
+    const testoRicerca = `${p.nome} ${p.codice} ${p.posizione} ${p.origine}`
+
+    return (
+      nomeCompatibile(nome, testoRicerca) &&
+      numeroCompatibile(lung, p.lunghezza) &&
+      numeroCompatibile(larg, p.larghezza) &&
+      numeroCompatibile(spess, p.spessore)
+    )
+  })
 
   mostra(risultati)
 }
@@ -157,20 +186,39 @@ function mostra(lista){
   lista.slice(0, 50).forEach(p => {
     div.innerHTML += `
       <div class="card">
-        <div class="nome">${p.nome}</div>
-        <div class="col5">${p.col5}</div>
-        <div class="origine">${p.origine}</div>
-        <div>${p.lunghezza} x ${p.larghezza} x ${p.spessore}</div>
+        <div class="nome">${escapeHtml(p.nome)}</div>
+        <div class="codice">${escapeHtml(p.codice)}</div>
+        <div class="posizione">${escapeHtml(p.posizione)}</div>
+        <div class="origine">${escapeHtml(p.origine)}</div>
+        <div class="misure">${escapeHtml(String(p.lunghezza))} x ${escapeHtml(String(p.larghezza))} x ${escapeHtml(String(p.spessore))}</div>
+        <div class="qta">Pezzi: ${escapeHtml(String(p.quantita))}</div>
       </div>
     `
   })
+
+  if(lista.length === 0){
+    div.innerHTML = `<div class="card">Nessun risultato</div>`
+  }
+}
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;")
 }
 
 document.querySelectorAll("input").forEach(i => {
   i.addEventListener("input", filtra)
 })
 
-carica()
+carica().catch(err => {
+  document.getElementById("risultati").innerHTML = `
+    <div class="card">Errore: ${escapeHtml(err.message)}</div>
+  `
+})
 </script>
 
 </body>
