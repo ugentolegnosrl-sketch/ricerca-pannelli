@@ -31,7 +31,15 @@ border-radius:10px;
 box-shadow:0 2px 5px rgba(0,0,0,0.1);
 }
 
-.col5{
+.codice{
+font-size:14px;
+font-weight:bold;
+color:#666;
+margin-bottom:6px;
+word-break:break-all;
+}
+
+.posizione{
 font-size:28px;
 font-weight:bold;
 color:#2e7d32;
@@ -48,6 +56,13 @@ font-size:22px;
 font-weight:bold;
 margin-bottom:8px;
 }
+
+.quantita{
+font-size:18px;
+font-weight:bold;
+color:#444;
+margin-top:6px;
+}
 </style>
 </head>
 
@@ -57,6 +72,7 @@ margin-bottom:8px;
 
 <h2>Ricerca prodotto</h2>
 
+<input id="codice" placeholder="Codice">
 <input id="nome" placeholder="Nome">
 <input id="lunghezza" placeholder="Lunghezza">
 <input id="larghezza" placeholder="Larghezza">
@@ -73,9 +89,9 @@ function normalizzaTesto(testo){
   return String(testo || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")   // toglie accenti
-    .replace(/[^\w\s]/g, " ")          // toglie punteggiatura
-    .replace(/\s+/g, " ")              // spazi multipli
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
 }
 
@@ -100,13 +116,18 @@ function nomeCompatibile(query, nomeProdotto){
     if(match) trovate++
   }
 
-  // tolleranza: se cerchi 1-2 parole devono esserci tutte,
-  // se ne cerchi 3 o più basta trovarne quasi tutte
   const minRichieste = paroleQuery.length <= 2
     ? paroleQuery.length
     : paroleQuery.length - 1
 
   return trovate >= minRichieste
+}
+
+function codiceCompatibile(query, codiceProdotto){
+  const q = normalizzaTesto(query)
+  const c = normalizzaTesto(codiceProdotto)
+  if(!q) return true
+  return c.includes(q)
 }
 
 async function carica(){
@@ -122,25 +143,31 @@ async function carica(){
     const c = r.split(",")
 
     return {
-      nome: c[0] || "",
-      lunghezza: c[1] || "",
-      larghezza: c[2] || "",
-      spessore: c[3] || "",
-      col5: c[4] || "",
-      origine: c[6] || ""
+      codice: (c[0] || "").trim(),
+      nome: (c[1] || "").trim(),
+      lunghezza: (c[2] || "").trim(),
+      larghezza: (c[3] || "").trim(),
+      spessore: (c[4] || "").trim(),
+      posizione: (c[5] || "").trim(),
+      quantita_pz: (c[6] || "").trim(),
+      origine: (c[7] || "").trim()
     }
-  })
+  }).filter(p =>
+    p.codice || p.nome || p.lunghezza || p.larghezza || p.spessore || p.posizione || p.quantita_pz || p.origine
+  )
 
   mostra(prodotti)
 }
 
 function filtra(){
+  const codice = document.getElementById("codice").value
   const nome = document.getElementById("nome").value
   const lung = document.getElementById("lunghezza").value.trim()
   const larg = document.getElementById("larghezza").value.trim()
   const spess = document.getElementById("spessore").value.trim()
 
   const risultati = prodotti.filter(p =>
+    codiceCompatibile(codice, p.codice) &&
     nomeCompatibile(nome, p.nome) &&
     (!lung || String(p.lunghezza).trim() == lung) &&
     (!larg || String(p.larghezza).trim() == larg) &&
@@ -157,10 +184,12 @@ function mostra(lista){
   lista.slice(0, 50).forEach(p => {
     div.innerHTML += `
       <div class="card">
+        <div class="codice">${p.codice}</div>
         <div class="nome">${p.nome}</div>
-        <div class="col5">${p.col5}</div>
+        <div class="posizione">${p.posizione}</div>
         <div class="origine">${p.origine}</div>
         <div>${p.lunghezza} x ${p.larghezza} x ${p.spessore}</div>
+        <div class="quantita">Pezzi: ${p.quantita_pz}</div>
       </div>
     `
   })
