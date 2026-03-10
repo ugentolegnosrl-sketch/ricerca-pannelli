@@ -1,88 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
+
 body{
-  font-family:Arial;
-  background:#f3f3f3;
-  padding:15px;
-}
-
-.container{
-  max-width:500px;
-  margin:auto;
-}
-
-input{
-  width:100%;
-  padding:14px;
-  margin:6px 0;
-  font-size:16px;
-  box-sizing:border-box;
+font-family:Arial;
+background:#f3f3f3;
+@@ -22,6 +20,7 @@
+padding:14px;
+margin:6px 0;
+font-size:16px;
+box-sizing:border-box;
 }
 
 .card{
-  background:white;
-  margin-top:12px;
-  padding:15px;
-  border-radius:10px;
-  box-shadow:0 2px 5px rgba(0,0,0,0.1);
-}
-
-.posizione{
-  font-size:28px;
-  font-weight:bold;
-  color:#2e7d32;
-}
-
-.origine{
-  font-size:22px;
-  font-weight:bold;
-  color:#1565c0;
+@@ -44,8 +43,12 @@
+color:#1565c0;
 }
 
 .nome{
-  font-size:22px;
-  font-weight:bold;
-  margin-bottom:8px;
-}
-
-.codice{
-  font-size:14px;
-  color:#666;
-  margin-bottom:8px;
-  word-break:break-all;
-}
-
-.qta{
-  font-size:18px;
-  font-weight:bold;
-  color:#444;
-  margin-top:8px;
-}
-
-.misure{
-  font-size:16px;
-  margin-top:6px;
+font-size:22px;
+font-weight:bold;
+margin-bottom:8px;
 }
 </style>
+
 </head>
 
 <body>
-
-<div class="container">
-
-<h2>Ricerca prodotto</h2>
-
-<input id="nome" placeholder="Nome o codice">
-<input id="lunghezza" placeholder="Lunghezza">
-<input id="larghezza" placeholder="Larghezza">
-<input id="spessore" placeholder="Spessore">
-
-<div id="risultati"></div>
-
+@@ -64,92 +67,111 @@ <h2>Ricerca prodotto</h2>
 </div>
 
 <script>
@@ -92,33 +41,53 @@ function normalizzaTesto(testo){
   return String(testo || "")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s-]/g, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[\u0300-\u036f]/g, "")   // toglie accenti
+    .replace(/[^\w\s]/g, " ")          // toglie punteggiatura
+    .replace(/\s+/g, " ")              // spazi multipli
     .trim()
 }
 
-function nomeCompatibile(query, testo){
-  const q = normalizzaTesto(query)
-  const n = normalizzaTesto(testo)
+let prodotti=[]
+async function carica(){
 
+const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
+function nomeCompatibile(query, nomeProdotto){
+  const q = normalizzaTesto(query)
+  const n = normalizzaTesto(nomeProdotto)
+
+const proxy = "https://corsproxy.io/?"
   if(!q) return true
   if(n.includes(q)) return true
 
+const res = await fetch(proxy + encodeURIComponent(url))
+const text = await res.text()
   const paroleQuery = q.split(" ").filter(Boolean)
   const paroleNome = n.split(" ").filter(Boolean)
 
+const righe = text.split("\n").slice(1)
   if(paroleQuery.length === 0) return true
 
+prodotti = righe.map(r=>{
+  const c = r.split(",")
   let trovate = 0
 
+  return{
+    nome:c[0],
+    lunghezza:c[1],
+    larghezza:c[2],
+    spessore:c[3],
+    col5:c[4],
+    origine:c[6]
   for(const parolaQ of paroleQuery){
     const match = paroleNome.some(parolaN =>
       parolaN.includes(parolaQ) || parolaQ.includes(parolaN)
     )
     if(match) trovate++
-  }
+}
+})
 
+  // tolleranza: se cerchi 1-2 parole devono esserci tutte,
+  // se ne cerchi 3 o più basta trovarne quasi tutte
   const minRichieste = paroleQuery.length <= 2
     ? paroleQuery.length
     : paroleQuery.length - 1
@@ -126,100 +95,113 @@ function nomeCompatibile(query, testo){
   return trovate >= minRichieste
 }
 
-function numeroCompatibile(valoreFiltro, valoreProdotto){
-  const filtro = String(valoreFiltro || "").trim().replace(",", ".")
-  if(!filtro) return true
-
-  const a = Number(filtro)
-  const b = Number(String(valoreProdotto || "").trim().replace(",", "."))
-
-  if(!Number.isFinite(a) || !Number.isFinite(b)) return false
-  return a === b
-}
-
+function filtra(){
 async function carica(){
-  const res = await fetch("/api/products")
-  const data = await res.json()
+  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
+  const proxy = "https://corsproxy.io/?"
 
-  if(!res.ok || !data.ok){
-    throw new Error((data && data.error) || "Errore caricamento prodotti")
-  }
+const nome=document.getElementById("nome").value.toLowerCase()
+const lung=document.getElementById("lunghezza").value
+const larg=document.getElementById("larghezza").value
+const spess=document.getElementById("spessore").value
+  const res = await fetch(proxy + encodeURIComponent(url))
+  const text = await res.text()
 
-  prodotti = (data.products || []).map(p => ({
-    codice: p.codice || "",
-    nome: p.nome || "",
-    lunghezza: p.lunghezza ?? "",
-    larghezza: p.larghezza ?? "",
-    spessore: p.spessore ?? "",
-    posizione: p.posizione || "",
-    quantita: p.quantita ?? "",
-    origine: p.origine || ""
-  }))
+const risultati=prodotti.filter(p=>
+  const righe = text.split("\n").slice(1)
 
+(!nome || p.nome.toLowerCase().includes(nome)) &&
+(!lung || p.lunghezza==lung) &&
+(!larg || p.larghezza==larg) &&
+(!spess || p.spessore==spess)
+  prodotti = righe.map(r => {
+    const c = r.split(",")
+
+)
+    return {
+      nome: c[0] || "",
+      lunghezza: c[1] || "",
+      larghezza: c[2] || "",
+      spessore: c[3] || "",
+      col5: c[4] || "",
+      origine: c[6] || ""
+    }
+  })
+
+mostra(risultati)
   mostra(prodotti)
 }
 
 function filtra(){
   const nome = document.getElementById("nome").value
-  const lung = document.getElementById("lunghezza").value
-  const larg = document.getElementById("larghezza").value
-  const spess = document.getElementById("spessore").value
+  const lung = document.getElementById("lunghezza").value.trim()
+  const larg = document.getElementById("larghezza").value.trim()
+  const spess = document.getElementById("spessore").value.trim()
 
-  const risultati = prodotti.filter(p => {
-    const testoRicerca = `${p.nome} ${p.codice} ${p.posizione} ${p.origine}`
-
-    return (
-      nomeCompatibile(nome, testoRicerca) &&
-      numeroCompatibile(lung, p.lunghezza) &&
-      numeroCompatibile(larg, p.larghezza) &&
-      numeroCompatibile(spess, p.spessore)
-    )
-  })
+  const risultati = prodotti.filter(p =>
+    nomeCompatibile(nome, p.nome) &&
+    (!lung || String(p.lunghezza).trim() == lung) &&
+    (!larg || String(p.larghezza).trim() == larg) &&
+    (!spess || String(p.spessore).trim() == spess)
+  )
 
   mostra(risultati)
 }
 
 function mostra(lista){
+
+const div=document.getElementById("risultati")
+
+div.innerHTML=""
+
+lista.slice(0,50).forEach(p=>{
+
+div.innerHTML+=`
+
+<div class="card">
+
+<b>${p.nome}</b><br>
+
+<br>
+
+<div class="col5">${p.col5}</div>
+<div class="origine">${p.origine}</div>
+
+${p.lunghezza} x ${p.larghezza} x ${p.spessore}
+
+</div>
+
+`
+
+})
+
   const div = document.getElementById("risultati")
   div.innerHTML = ""
 
   lista.slice(0, 50).forEach(p => {
     div.innerHTML += `
       <div class="card">
-        <div class="nome">${escapeHtml(p.nome)}</div>
-        <div class="codice">${escapeHtml(p.codice)}</div>
-        <div class="posizione">${escapeHtml(p.posizione)}</div>
-        <div class="origine">${escapeHtml(p.origine)}</div>
-        <div class="misure">${escapeHtml(String(p.lunghezza))} x ${escapeHtml(String(p.larghezza))} x ${escapeHtml(String(p.spessore))}</div>
-        <div class="qta">Pezzi: ${escapeHtml(String(p.quantita))}</div>
+        <div class="nome">${p.nome}</div>
+        <div class="col5">${p.col5}</div>
+        <div class="origine">${p.origine}</div>
+        <div>${p.lunghezza} x ${p.larghezza} x ${p.spessore}</div>
       </div>
     `
   })
-
-  if(lista.length === 0){
-    div.innerHTML = `<div class="card">Nessun risultato</div>`
-  }
 }
 
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;")
-}
+document.querySelectorAll("input").forEach(i=>{
+
+i.addEventListener("input",filtra)
 
 document.querySelectorAll("input").forEach(i => {
   i.addEventListener("input", filtra)
 })
 
-carica().catch(err => {
-  document.getElementById("risultati").innerHTML = `
-    <div class="card">Errore: ${escapeHtml(err.message)}</div>
-  `
-})
+carica()
+
 </script>
 
 </body>
+</html>
 </html>
