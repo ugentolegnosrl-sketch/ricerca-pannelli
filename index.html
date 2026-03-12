@@ -1,67 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html lang="it">
 <head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Ricerca prodotto</title>
 
 <style>
 body{
-font-family:Arial;
-background:#f3f3f3;
-padding:15px;
+  font-family:Arial;
+  background:#f3f3f3;
+  padding:15px;
+  margin:0;
 }
 
 .container{
-max-width:500px;
-margin:auto;
+  max-width:500px;
+  margin:auto;
+}
+
+h2{
+  margin-top:0;
 }
 
 input{
-width:100%;
-padding:14px;
-margin:6px 0;
-font-size:16px;
-box-sizing:border-box;
+  width:100%;
+  padding:14px;
+  margin:6px 0;
+  font-size:16px;
+  box-sizing:border-box;
+  border:1px solid #ccc;
+  border-radius:8px;
+  background:#fff;
 }
 
 .card{
-background:white;
-margin-top:12px;
-padding:15px;
-border-radius:10px;
-box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  background:white;
+  margin-top:12px;
+  padding:15px;
+  border-radius:10px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
 }
 
 .codice{
-font-size:14px;
-font-weight:bold;
-color:#666;
-margin-bottom:6px;
-word-break:break-all;
+  font-size:14px;
+  font-weight:bold;
+  color:#666;
+  margin-bottom:6px;
+  word-break:break-all;
 }
 
 .posizione{
-font-size:28px;
-font-weight:bold;
-color:#2e7d32;
+  font-size:28px;
+  font-weight:bold;
+  color:#2e7d32;
 }
 
 .origine{
-font-size:22px;
-font-weight:bold;
-color:#1565c0;
+  font-size:22px;
+  font-weight:bold;
+  color:#1565c0;
 }
 
 .nome{
-font-size:22px;
-font-weight:bold;
-margin-bottom:8px;
+  font-size:22px;
+  font-weight:bold;
+  margin-bottom:8px;
 }
 
 .quantita{
-font-size:18px;
-font-weight:bold;
-color:#444;
-margin-top:6px;
+  font-size:18px;
+  font-weight:bold;
+  color:#444;
+  margin-top:6px;
+}
+
+.info{
+  background:#fff;
+  border-radius:10px;
+  padding:12px 14px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.08);
+  margin-bottom:12px;
+  font-size:14px;
+  color:#444;
+}
+
+.errore{
+  color:#b00020;
+  font-weight:bold;
+}
+
+.muted{
+  color:#666;
+}
+
+.hidden{
+  display:none;
 }
 </style>
 </head>
@@ -70,20 +104,37 @@ margin-top:6px;
 
 <div class="container">
 
-<h2>Ricerca prodotto</h2>
+  <h2>Ricerca prodotto</h2>
 
-<input id="codice" placeholder="Codice">
-<input id="nome" placeholder="Nome">
-<input id="lunghezza" placeholder="Lunghezza">
-<input id="larghezza" placeholder="Larghezza">
-<input id="spessore" placeholder="Spessore">
+  <div id="stato" class="info">Caricamento dati...</div>
 
-<div id="risultati"></div>
+  <input id="codice" placeholder="Codice" autocomplete="off">
+  <input id="nome" placeholder="Nome" autocomplete="off">
+  <input id="lunghezza" placeholder="Lunghezza" autocomplete="off">
+  <input id="larghezza" placeholder="Larghezza" autocomplete="off">
+  <input id="spessore" placeholder="Spessore" autocomplete="off">
+
+  <div id="risultati"></div>
 
 </div>
 
 <script>
-let prodotti = []
+const SUPABASE_URL = "https://qtioqpuzgoshashgjhgt.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_HKUZI-e5Kazrc3UnoVmUQQ_2swVjp7J";
+
+const TABLE_NAME = "balle";
+const PAGE_SIZE = 1000;
+
+let prodotti = [];
+
+function escapeHtml(value){
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function normalizzaTesto(testo){
   return String(testo || "")
@@ -92,114 +143,192 @@ function normalizzaTesto(testo){
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\w\s-]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
+    .trim();
 }
 
 function nomeCompatibile(query, nomeProdotto){
-  const q = normalizzaTesto(query)
-  const n = normalizzaTesto(nomeProdotto)
+  const q = normalizzaTesto(query);
+  const n = normalizzaTesto(nomeProdotto);
 
-  if(!q) return true
-  if(n.includes(q)) return true
+  if(!q) return true;
+  if(n.includes(q)) return true;
 
-  const paroleQuery = q.split(" ").filter(Boolean)
-  const paroleNome = n.split(" ").filter(Boolean)
+  const paroleQuery = q.split(" ").filter(Boolean);
+  const paroleNome = n.split(" ").filter(Boolean);
 
-  if(paroleQuery.length === 0) return true
+  if(paroleQuery.length === 0) return true;
 
-  let trovate = 0
+  let trovate = 0;
 
   for(const parolaQ of paroleQuery){
     const match = paroleNome.some(parolaN =>
       parolaN.includes(parolaQ) || parolaQ.includes(parolaN)
-    )
-    if(match) trovate++
+    );
+    if(match) trovate++;
   }
 
   const minRichieste = paroleQuery.length <= 2
     ? paroleQuery.length
-    : paroleQuery.length - 1
+    : paroleQuery.length - 1;
 
-  return trovate >= minRichieste
+  return trovate >= minRichieste;
 }
 
 function codiceCompatibile(query, codiceProdotto){
-  const q = normalizzaTesto(query)
-  const c = normalizzaTesto(codiceProdotto)
-  if(!q) return true
-  return c.includes(q)
+  const q = normalizzaTesto(query);
+  const c = normalizzaTesto(codiceProdotto);
+  if(!q) return true;
+  return c.includes(q);
+}
+
+function setStato(html, isError = false){
+  const stato = document.getElementById("stato");
+  stato.className = "info" + (isError ? " errore" : "");
+  stato.innerHTML = html;
+}
+
+function normalizzaNumeroDB(valore){
+  if(valore === null || valore === undefined) return "";
+  return String(valore).trim();
+}
+
+async function fetchBallePage(offset, limit){
+  const params = new URLSearchParams({
+    select: "codice,nome,lunghezza,larghezza,spessore,posizione,quantita_pz,origine,created_at,updated_at",
+    order: "updated_at.desc.nullslast,codice.asc",
+    limit: String(limit),
+    offset: String(offset)
+  });
+
+  const url = `${SUPABASE_URL}/rest/v1/${TABLE_NAME}?${params.toString()}`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "apikey": SUPABASE_PUBLISHABLE_KEY,
+      "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+      "Accept": "application/json"
+    }
+  });
+
+  let data = null;
+  let errorText = "";
+
+  try{
+    data = await res.json();
+  }catch(_e){
+    errorText = await res.text().catch(() => "");
+  }
+
+  if(!res.ok){
+    const message =
+      (data && (data.message || data.error_description || data.error)) ||
+      errorText ||
+      `Errore HTTP ${res.status}`;
+    throw new Error(message);
+  }
+
+  if(!Array.isArray(data)){
+    throw new Error("Risposta non valida da Supabase.");
+  }
+
+  return data;
 }
 
 async function carica(){
-  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSV795xs_3dfS0oBeQU2ZRq_Wcv8ylSbtL_3Eg7gKUkOH7Doqmt-oaVWCyRXTpdTCH5hY9ConPp0bZj/pub?gid=2031870640&single=true&output=csv"
-  const proxy = "https://corsproxy.io/?"
+  try{
+    setStato("Caricamento dati...");
+    prodotti = [];
 
-  const res = await fetch(proxy + encodeURIComponent(url))
-  const text = await res.text()
+    let offset = 0;
 
-  const righe = text.split("\n").slice(1)
+    while(true){
+      const batch = await fetchBallePage(offset, PAGE_SIZE);
 
-  prodotti = righe.map(r => {
-    const c = r.split(",")
+      const righe = batch.map(r => ({
+        codice: normalizzaNumeroDB(r.codice),
+        nome: normalizzaNumeroDB(r.nome),
+        lunghezza: normalizzaNumeroDB(r.lunghezza),
+        larghezza: normalizzaNumeroDB(r.larghezza),
+        spessore: normalizzaNumeroDB(r.spessore),
+        posizione: normalizzaNumeroDB(r.posizione),
+        quantita_pz: normalizzaNumeroDB(r.quantita_pz),
+        origine: normalizzaNumeroDB(r.origine),
+        created_at: normalizzaNumeroDB(r.created_at),
+        updated_at: normalizzaNumeroDB(r.updated_at)
+      })).filter(p =>
+        p.codice || p.nome || p.lunghezza || p.larghezza || p.spessore || p.posizione || p.quantita_pz || p.origine
+      );
 
-    return {
-      codice: (c[0] || "").trim(),
-      nome: (c[1] || "").trim(),
-      lunghezza: (c[2] || "").trim(),
-      larghezza: (c[3] || "").trim(),
-      spessore: (c[4] || "").trim(),
-      posizione: (c[5] || "").trim(),
-      quantita_pz: (c[6] || "").trim(),
-      origine: (c[7] || "").trim()
+      prodotti = prodotti.concat(righe);
+
+      if(batch.length < PAGE_SIZE){
+        break;
+      }
+
+      offset += PAGE_SIZE;
     }
-  }).filter(p =>
-    p.codice || p.nome || p.lunghezza || p.larghezza || p.spessore || p.posizione || p.quantita_pz || p.origine
-  )
 
-  mostra(prodotti)
+    setStato(`Dati caricati: <strong>${prodotti.length}</strong> record`);
+    mostra(prodotti);
+  }catch(err){
+    console.error(err);
+    setStato(
+      "Errore nel caricamento dati.<br>" +
+      "<span class='muted'>" + escapeHtml(err.message || "Errore sconosciuto") + "</span>",
+      true
+    );
+    mostra([]);
+  }
 }
 
 function filtra(){
-  const codice = document.getElementById("codice").value
-  const nome = document.getElementById("nome").value
-  const lung = document.getElementById("lunghezza").value.trim()
-  const larg = document.getElementById("larghezza").value.trim()
-  const spess = document.getElementById("spessore").value.trim()
+  const codice = document.getElementById("codice").value;
+  const nome = document.getElementById("nome").value;
+  const lung = document.getElementById("lunghezza").value.trim();
+  const larg = document.getElementById("larghezza").value.trim();
+  const spess = document.getElementById("spessore").value.trim();
 
   const risultati = prodotti.filter(p =>
     codiceCompatibile(codice, p.codice) &&
     nomeCompatibile(nome, p.nome) &&
-    (!lung || String(p.lunghezza).trim() == lung) &&
-    (!larg || String(p.larghezza).trim() == larg) &&
-    (!spess || String(p.spessore).trim() == spess)
-  )
+    (!lung || String(p.lunghezza).trim() === lung) &&
+    (!larg || String(p.larghezza).trim() === larg) &&
+    (!spess || String(p.spessore).trim() === spess)
+  );
 
-  mostra(risultati)
+  mostra(risultati);
 }
 
 function mostra(lista){
-  const div = document.getElementById("risultati")
-  div.innerHTML = ""
+  const div = document.getElementById("risultati");
+
+  if(!Array.isArray(lista) || lista.length === 0){
+    div.innerHTML = '<div class="info">Nessun risultato</div>';
+    return;
+  }
+
+  div.innerHTML = "";
 
   lista.slice(0, 50).forEach(p => {
     div.innerHTML += `
       <div class="card">
-        <div class="codice">${p.codice}</div>
-        <div class="nome">${p.nome}</div>
-        <div class="posizione">${p.posizione}</div>
-        <div class="origine">${p.origine}</div>
-        <div>${p.lunghezza} x ${p.larghezza} x ${p.spessore}</div>
-        <div class="quantita">Pezzi: ${p.quantita_pz}</div>
+        <div class="codice">${escapeHtml(p.codice)}</div>
+        <div class="nome">${escapeHtml(p.nome)}</div>
+        <div class="posizione">${escapeHtml(p.posizione)}</div>
+        <div class="origine">${escapeHtml(p.origine)}</div>
+        <div>${escapeHtml(p.lunghezza)} x ${escapeHtml(p.larghezza)} x ${escapeHtml(p.spessore)}</div>
+        <div class="quantita">Pezzi: ${escapeHtml(p.quantita_pz)}</div>
       </div>
-    `
-  })
+    `;
+  });
 }
 
 document.querySelectorAll("input").forEach(i => {
-  i.addEventListener("input", filtra)
-})
+  i.addEventListener("input", filtra);
+});
 
-carica()
+carica();
 </script>
 
 </body>
